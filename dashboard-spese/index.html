@@ -97,6 +97,21 @@ input:focus,select:focus{border-color:var(--accent);background:var(--surface)}
 .lock-box input{margin:16px 0 10px;text-align:center;font-size:17px}
 .err{color:var(--out);font-size:13px;min-height:18px}
 .chart-bars text{fill:var(--muted);font-size:11px}
+.client-in{max-width:340px}
+.card-head{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:10px;margin-bottom:14px}
+.card-head h2{margin:0}
+.seg.small button{padding:6px 12px;font-size:13px}
+.seg.small button.on{background:var(--surface);color:var(--accent);box-shadow:var(--shadow)}
+.cl-row{display:grid;grid-template-columns:40px 1fr auto;gap:12px;align-items:center;padding:10px 4px;border-bottom:1px solid var(--border)}
+.cl-row:last-child{border-bottom:0}
+.cl-av{width:40px;height:40px;border-radius:999px;display:grid;place-items:center;font-weight:700;background:var(--accent-soft);color:var(--accent)}
+.cl-row .t{font-weight:600}
+.cl-row .m{font-size:12.5px;color:var(--muted)}
+.cl-row .a{font-weight:700;font-variant-numeric:tabular-nums;text-align:right}
+.cl-row .a small{display:block;font-weight:500;color:var(--muted);font-size:12px}
+.cl-bar{height:4px;background:var(--surface-2);border-radius:4px;margin-top:6px;overflow:hidden}
+.cl-bar i{display:block;height:100%;background:var(--in);border-radius:4px}
+.cl-total{display:flex;justify-content:space-between;padding:12px 4px 0;margin-top:4px;border-top:1px solid var(--border);font-weight:650}
 @media (max-width:980px){
   .kpis{grid-template-columns:repeat(2,1fr)}
   .two{grid-template-columns:1fr}
@@ -150,6 +165,8 @@ input:focus,select:focus{border-color:var(--accent);background:var(--surface)}
       <button class="btn" id="addBtn">Aggiungi</button>
     </div>
     <div class="form-extra">
+      <input id="fClient" class="client-in" type="text" list="clientList" placeholder="👤 Cliente: chi ti ha chiamato per il lavoro" hidden autocomplete="off">
+      <datalist id="clientList"></datalist>
       <label><input type="checkbox" id="fFixed"> Fisso ogni mese (affitto, abbonamenti, stipendio…)</label>
       <span id="catHint"></span>
     </div>
@@ -168,6 +185,18 @@ input:focus,select:focus{border-color:var(--accent);background:var(--surface)}
       <h2 style="margin-top:18px">Cosa noto</h2>
       <div class="insights" id="insights"></div>
     </div>
+  </section>
+
+  <section class="card" style="margin-top:16px">
+    <div class="card-head">
+      <h2>Guadagni per cliente <small id="clientSub"></small></h2>
+      <div class="seg small" id="clientSeg">
+        <button data-p="month" class="on">Mese</button>
+        <button data-p="year">Anno</button>
+        <button data-p="all">Sempre</button>
+      </div>
+    </div>
+    <div id="clients"></div>
   </section>
 
   <section class="grid two" style="margin-top:16px">
@@ -249,6 +278,7 @@ let cryptoKey = null, salt = null; // set only when a code is active
 let viewM = ym(new Date());
 let type = "out";
 let catTouched = false;
+let clientPeriod = "month";
 
 /* ---------- Utils ---------- */
 function ym(d){return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")}
@@ -303,6 +333,36 @@ function cumulative(upTo){
   let s=0; for(let m=f; m<=upTo; m=shiftM(m,1)) s+=totals(m).net;
   return s;
 }
+function lastMonth(){
+  const ms = [ym(new Date()), viewM, ...S.tx.map(t=>t.date.slice(0,7))];
+  return ms.sort().pop();
+}
+function rangeItems(p){
+  let from, to;
+  if(p==="month"){ from=to=viewM; }
+  else if(p==="year"){ from=viewM.slice(0,4)+"-01"; to=viewM.slice(0,4)+"-12"; }
+  else { from=firstMonth(); to=lastMonth(); if(!from) return []; }
+  const out=[]; for(let m=from; m<=to; m=shiftM(m,1)) out.push(...monthItems(m));
+  return out;
+}
+function clientStats(p){
+  const map = new Map(); let noClient=0;
+  for(const t of rangeItems(p)){
+    if(t.type!=="in") continue;
+    const name=(t.client||"").trim();
+    if(!name){ noClient+=t.amount; continue; }
+    const k=name.toLowerCase();
+    const c = map.get(k) || {name, sum:0, jobs:0, last:""};
+    c.sum+=t.amount; c.jobs++; if(t.date>c.last) c.last=t.date;
+    map.set(k,c);
+  }
+  return {list:[...map.values()].sort((a,b)=>b.sum-a.sum), noClient};
+}
+function allClients(){
+  const seen=new Map();
+  [...S.tx,...S.fixed].forEach(t=>{ const n=(t.client||"").trim(); if(n && !seen.has(n.toLowerCase())) seen.set(n.toLowerCase(),n); });
+  return [...seen.values()].sort((a,b)=>a.localeCompare(b,"it"));
+}
 function guessCat(desc, t){
   const d = " "+desc.toLowerCase()+" ";
   for(const [cat,words] of Object.entries(KW)){
@@ -332,7 +392,8 @@ function render(){
     {l:"Risparmio totale", v:eur(cum), cls:cum>=0?"pos":"neg", s:"accumulato fino a questo mese"},
   ].map(k=>`<div class="card kpi"><div class="label">${k.l}</div><div class="value ${k.cls}">${k.v}</div><div class="sub">${k.s}</div></div>`).join("");
 
-  renderDonut(); renderBars(); renderInsights(cur, prev, rate); renderLists();
+  renderDonut(); renderBars(); renderInsights(cur, prev, rate); renderClients(); renderLists();
+  $("clientList").innerHTML = allClients().map(n=>`<option value="${esc(n)}">`).join("");
 
   const enc = !!cryptoKey;
   $("encInfo").innerHTML = enc
@@ -391,6 +452,8 @@ function renderInsights(cur, prev, rate){
   const by={}; items.filter(t=>t.type==="out").forEach(t=>by[t.cat]=(by[t.cat]||0)+t.amount);
   const top = Object.entries(by).sort((a,b)=>b[1]-a[1])[0];
   if(top && cur.o) out.push(["📊",`La categoria dove spendi di più è <b>${CATS[top[0]].n}</b>: ${eur(top[1])} (${Math.round(top[1]/cur.o*100)}% delle uscite).`]);
+  const topClient = clientStats("month").list[0];
+  if(topClient && cur.i) out.push(["👤",`Il cliente che ti ha fatto guadagnare di più questo mese è <b>${esc(topClient.name)}</b>: ${eur(topClient.sum)} (${Math.round(topClient.sum/cur.i*100)}% delle entrate).`]);
   const fixedOut = items.filter(t=>t.isFixed&&t.type==="out").reduce((s,t)=>s+t.amount,0);
   if(fixedOut) out.push(["📌",`Le spese fisse pesano <b>${eur(fixedOut)}</b> al mese${cur.i?` (${Math.round(fixedOut/cur.i*100)}% delle entrate)`:""}.`]);
   if(rate!==null){
@@ -405,11 +468,32 @@ function renderInsights(cur, prev, rate){
   }
   $("insights").innerHTML = out.map(([e,t])=>`<div class="ins"><span>${e}</span><span>${t}</span></div>`).join("");
 }
+function renderClients(){
+  const per = {month:mLabel(viewM), year:"anno "+viewM.slice(0,4), all:"da sempre"}[clientPeriod];
+  $("clientSub").textContent = "· "+per;
+  const {list, noClient} = clientStats(clientPeriod);
+  if(!list.length){
+    $("clients").innerHTML = `<div class="empty">Nessun guadagno da clienti (${per}).<br>Quando aggiungi un'<b>Entrata</b>, scrivi il nome di chi ti ha chiamato nel campo “Cliente”.</div>`;
+    return;
+  }
+  const tot = list.reduce((s,c)=>s+c.sum,0), max=list[0].sum;
+  const fmtD = d => new Date(d+"T12:00").toLocaleDateString("it-IT",{day:"numeric",month:"short",year:"numeric"});
+  $("clients").innerHTML = list.map(c=>{
+    const ini = c.name.split(/\s+/).map(w=>w[0]).join("").slice(0,2).toUpperCase();
+    return `<div class="cl-row"><div class="cl-av">${esc(ini)}</div>
+      <div><div class="t">${esc(c.name)}</div>
+        <div class="m">${c.jobs} ${c.jobs===1?"lavoro":"lavori"} · media ${eur(c.sum/c.jobs)} · ultimo ${fmtD(c.last)}</div>
+        <div class="cl-bar"><i style="width:${c.sum/max*100}%"></i></div></div>
+      <div class="a pos">${eur(c.sum)}<small>${Math.round(c.sum/tot*100)}% del totale</small></div></div>`;
+  }).join("") + `<div class="cl-total"><span>Totale da ${list.length} ${list.length===1?"cliente":"clienti"}</span><span class="pos">${eur(tot)}</span></div>`
+    + (noClient ? `<div class="muted" style="padding:6px 4px 0">Altre entrate senza cliente (es. stipendio): ${eur(noClient)}</div>` : "");
+}
 function rowHtml(t, fixedList){
   const c = CATS[t.cat]||CATS.altro, sign = t.type==="in"?"+":"−";
+  const who = t.client ? ` · 👤 ${esc(t.client)}` : "";
   const meta = fixedList
-    ? `${c.n} · dal ${mLabel(t.since)}${t.until?" al "+mLabel(t.until):""}`
-    : `${c.n} · ${t.isFixed?"fisso":new Date(t.date+"T12:00").toLocaleDateString("it-IT",{day:"numeric",month:"short"})}`;
+    ? `${c.n}${who} · dal ${mLabel(t.since)}${t.until?" al "+mLabel(t.until):""}`
+    : `${c.n}${who} · ${t.isFixed?"fisso":new Date(t.date+"T12:00").toLocaleDateString("it-IT",{day:"numeric",month:"short"})}`;
   return `<div class="row"><div class="ic" style="background:${c.c}22">${c.e}</div>
     <div><div class="t">${esc(t.desc||c.n)}${t.isFixed&&!fixedList?'<span class="tag">fisso</span>':""}</div><div class="m">${meta}</div></div>
     <div class="a ${t.type==="in"?"pos":"neg"}">${sign} ${eur(t.amount)}</div>
@@ -426,11 +510,13 @@ function renderLists(){
 /* ---------- Actions ---------- */
 function setType(t){
   type=t; document.querySelectorAll("#typeSeg button").forEach(b=>b.classList.toggle("on",b.dataset.t===t));
+  $("fClient").hidden = t!=="in";
   catTouched=false; fillCats(); autoCat();
 }
 function autoCat(){
   if(catTouched) return;
-  const g = guessCat($("fDesc").value, type);
+  let g = guessCat($("fDesc").value, type);
+  if(!g && type==="in" && $("fClient").value.trim()) g = "clienti";
   if(g){ $("fCat").value=g; $("catHint").innerHTML = `Categoria riconosciuta: <span class="hint">${CATS[g].e} ${CATS[g].n}</span>`; }
   else { $("catHint").textContent=""; }
 }
@@ -438,9 +524,11 @@ async function add(){
   const amount = Math.round(parseFloat(String($("fAmount").value).replace(",","."))*100)/100;
   if(!(amount>0)){ $("fAmount").focus(); return; }
   const desc = $("fDesc").value.trim(), cat=$("fCat").value, date=$("fDate").value||today();
-  if($("fFixed").checked) S.fixed.push({id:uid(), type, amount, cat, desc, since:date.slice(0,7), until:null});
-  else S.tx.push({id:uid(), type, amount, cat, desc, date});
-  $("fAmount").value=""; $("fDesc").value=""; $("fFixed").checked=false; catTouched=false; $("catHint").textContent="";
+  let client = type==="in" ? $("fClient").value.trim() : "";
+  if(client){ const known = allClients().find(n=>n.toLowerCase()===client.toLowerCase()); if(known) client=known; }
+  if($("fFixed").checked) S.fixed.push({id:uid(), type, amount, cat, desc, client, since:date.slice(0,7), until:null});
+  else S.tx.push({id:uid(), type, amount, cat, desc, client, date});
+  $("fAmount").value=""; $("fDesc").value=""; $("fClient").value=""; $("fFixed").checked=false; catTouched=false; $("catHint").textContent="";
   viewM = date.slice(0,7);
   await save(); render(); $("fAmount").focus();
 }
@@ -512,7 +600,11 @@ function lockNow(){ S={tx:[],fixed:[]}; cryptoKey=null; salt=null; $("app").hidd
 $("prevM").onclick=()=>{viewM=shiftM(viewM,-1);render()};
 $("nextM").onclick=()=>{viewM=shiftM(viewM,1);render()};
 document.querySelectorAll("#typeSeg button").forEach(b=>b.onclick=()=>setType(b.dataset.t));
-$("fDesc").oninput=autoCat;
+$("fDesc").oninput=autoCat; $("fClient").oninput=autoCat;
+$("fClient").addEventListener("keydown",e=>{if(e.key==="Enter")add()});
+document.querySelectorAll("#clientSeg button").forEach(b=>b.onclick=()=>{
+  clientPeriod=b.dataset.p; document.querySelectorAll("#clientSeg button").forEach(x=>x.classList.toggle("on",x===b)); renderClients();
+});
 $("fCat").onchange=()=>{catTouched=true;$("catHint").textContent=""};
 $("addBtn").onclick=add;
 ["fAmount","fDesc","fDate"].forEach(id=>$(id).addEventListener("keydown",e=>{if(e.key==="Enter")add()}));
