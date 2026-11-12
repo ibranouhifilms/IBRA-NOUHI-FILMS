@@ -144,6 +144,41 @@ dialog::backdrop{background:rgba(10,12,16,.55);backdrop-filter:blur(3px)}
 .chip:hover{filter:brightness(1.1)}
 @media (max-width:600px){.job-stats{grid-template-columns:1fr}}
 .ebox input[type=text],.ebox input[type=date],.ebox input[type=color]{background:var(--surface);border-color:var(--border);width:100%;margin:0}
+.tabs{display:inline-flex;background:var(--surface);border:1px solid var(--border);border-radius:999px;padding:4px;box-shadow:var(--shadow);gap:2px}
+.tabs button{border:0;background:transparent;padding:8px 16px;border-radius:999px;font-weight:650;cursor:pointer;color:var(--muted);display:inline-flex;align-items:center;gap:6px}
+.tabs button.on{background:var(--accent);color:#fff}
+.tab-badge{background:var(--out);color:#fff;font-size:11px;min-width:18px;height:18px;border-radius:999px;display:inline-grid;place-items:center;padding:0 5px}
+header{align-items:center}
+header > div:first-child{margin-right:auto}
+.sec-title{font-size:17px;margin:26px 2px 12px;letter-spacing:-.01em;text-transform:none}
+.sec-title span{text-transform:capitalize}
+.mov .col-head{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:12px}
+.mov .col-head h2{margin:0;font-size:16px}
+.mov .col-head b{font-size:20px;font-variant-numeric:tabular-nums}
+.fixbox{background:var(--surface-2);border-radius:14px;margin-bottom:14px;overflow:hidden}
+.fixbox summary{list-style:none;display:flex;align-items:center;gap:10px;padding:12px 14px;cursor:pointer;user-select:none}
+.fixbox summary::-webkit-details-marker{display:none}
+.fixbox summary .lbl{flex:1;font-weight:650}
+.fixbox summary small{color:var(--muted);font-weight:500;margin-left:4px}
+.fixbox summary b{font-variant-numeric:tabular-nums}
+.chev{display:inline-grid;place-items:center;width:26px;height:26px;border-radius:999px;background:var(--surface);transition:transform .2s;font-size:12px}
+.fixbox[open] .chev{transform:rotate(180deg)}
+.fixbox .list{padding:0 10px 6px;background:var(--surface-2)}
+.fixbox .row{border-color:var(--border)}
+.day-h{font-size:12px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;margin:12px 4px 2px}
+.day-h:first-of-type{margin-top:4px}
+.jobs-grid{grid-template-columns:1.7fr 1fr}
+.due{display:grid;grid-template-columns:50px 1fr;gap:12px;align-items:center;padding:10px 4px;border-bottom:1px solid var(--border);cursor:pointer}
+.due:last-child{border-bottom:0}
+.due .d{background:var(--surface-2);border-radius:12px;text-align:center;padding:6px 0;line-height:1.1}
+.due .d b{display:block;font-size:19px}
+.due .d span{font-size:11px;color:var(--muted);text-transform:uppercase;font-weight:650}
+.due.late .d{background:var(--out-soft)} .due.late .d b{color:var(--out)}
+.emoji-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(36px,1fr));gap:4px;max-height:150px;overflow:auto;padding:2px}
+.emoji-grid button{border:0;background:var(--surface);border-radius:10px;height:36px;font-size:19px;cursor:pointer}
+.emoji-grid button:hover{background:var(--accent-soft)}
+.emoji-grid button.on{outline:2px solid var(--accent)}
+@media (max-width:980px){.jobs-grid{grid-template-columns:1fr} header > div:first-child{flex-basis:100%}}
 .cl-total{display:flex;justify-content:space-between;padding:12px 4px 0;margin-top:4px;border-top:1px solid var(--border);font-weight:650}
 @media (max-width:980px){
   .kpis{grid-template-columns:repeat(2,1fr)}
@@ -210,6 +245,8 @@ dialog::backdrop{background:rgba(10,12,16,.55);backdrop-filter:blur(3px)}
       <input id="cName" type="text" maxlength="30" placeholder="Nome (es. Palestra, Animali)" aria-label="Nome">
       <input id="cColor" type="color" aria-label="Colore">
     </div>
+    <div class="muted" style="font-weight:600">Scegli un'emoji</div>
+    <div class="emoji-grid" id="emojiGrid"></div>
     <div style="display:flex;gap:8px;justify-content:flex-end"><button class="btn ghost" id="cReset" hidden>Annulla</button><button class="btn" id="cSave">Aggiungi</button></div>
   </div>
   <div class="eacts"><button class="btn ghost" id="cClose">Chiudi</button></div>
@@ -238,16 +275,22 @@ dialog::backdrop{background:rgba(10,12,16,.55);backdrop-filter:blur(3px)}
 <div class="wrap" id="app" hidden>
   <header>
     <div>
-      <h1>Le mie finanze</h1>
+      <h1 id="pageTitle">Le mie finanze</h1>
       <div class="badge" id="privBadge">● Privato · salvato solo su questo dispositivo</div>
     </div>
-    <div class="month-nav">
+    <nav class="tabs" id="tabs">
+      <button data-v="fin" class="on">💰 Finanze</button>
+      <button data-v="jobs">🎬 Lavori <span class="tab-badge" id="jobBadge" hidden></span></button>
+    </nav>
+    <button class="btn" id="newJobBtn" hidden>＋ Nuovo lavoro</button>
+    <div class="month-nav" id="monthNav">
       <button class="icon-btn" id="prevM" aria-label="Mese precedente">‹</button>
       <span id="monthLabel"></span>
       <button class="icon-btn" id="nextM" aria-label="Mese successivo">›</button>
     </div>
   </header>
 
+<div id="viewFin">
   <section class="card">
     <div class="card-head"><h2>Aggiungi un movimento</h2><button class="btn ghost" id="catsBtn" style="padding:7px 14px;font-size:13.5px">🏷️ Categorie</button></div>
     <div class="form">
@@ -296,32 +339,40 @@ dialog::backdrop{background:rgba(10,12,16,.55);backdrop-filter:blur(3px)}
     <div id="clients"></div>
   </section>
 
-  <section class="card" style="margin-top:16px">
-    <div class="card-head">
-      <h2>Lavori</h2>
-      <div style="display:flex;gap:8px;flex-wrap:wrap">
+  <h2 class="sec-title">Movimenti di <span id="movMonth"></span></h2>
+  <section class="grid two mov">
+    <div class="card" id="outCol"></div>
+    <div class="card" id="inCol"></div>
+  </section>
+</div>
+
+<div id="viewJobs" hidden>
+  <section class="grid kpis" id="jobStats"></section>
+  <section class="grid jobs-grid">
+    <div class="card">
+      <div class="card-head">
+        <h2>I miei lavori <small id="jobCount"></small></h2>
         <div class="seg small" id="jobSeg">
           <button data-f="open" class="on">Da saldare</button>
           <button data-f="all">Tutti</button>
           <button data-f="paid">Saldati</button>
         </div>
-        <button class="btn" id="newJobBtn" style="padding:7px 14px;font-size:13.5px">＋ Nuovo lavoro</button>
+      </div>
+      <input id="jobSearch" type="search" placeholder="🔍 Cerca per cliente o lavoro" style="margin-bottom:8px">
+      <div class="list" id="jobList"></div>
+    </div>
+    <div class="grid" style="align-content:start">
+      <div class="card">
+        <h2>Prossime consegne</h2>
+        <div class="list" id="jobSoon"></div>
+      </div>
+      <div class="card">
+        <h2>Da incassare per cliente</h2>
+        <div class="list" id="jobByClient"></div>
       </div>
     </div>
-    <div class="job-stats" id="jobStats"></div>
-    <div class="list" id="jobList"></div>
   </section>
-
-  <section class="grid two" style="margin-top:16px">
-    <div class="card">
-      <h2>Movimenti del mese <small id="txCount"></small></h2>
-      <div class="list" id="txList"></div>
-    </div>
-    <div class="card">
-      <h2>Spese e entrate fisse <small>ogni mese</small></h2>
-      <div class="list" id="fixedList"></div>
-    </div>
-  </section>
+</div>
 
   <section class="card" style="margin-top:16px">
     <h2>Privacy e backup</h2>
@@ -493,6 +544,8 @@ function applyCats(){
   CATS = {};
   for(const [k,c] of Object.entries(BASE_CATS)){ const o=S.cats[k]; if(o && o.deleted) continue; CATS[k]={...c, ...(o||{})}; }
   for(const [k,c] of Object.entries(S.cats)) if(!BASE_CATS[k] && !c.deleted) CATS[k]={...c};
+  const clean = v => String(v||"").replace(/[<>&"'`]/g,"");
+  for(const c of Object.values(CATS)){ c.n=clean(c.n)||"Categoria"; c.e=clean(c.e)||"•"; if(!/^#[0-9a-f]{6}$/i.test(c.c)) c.c="#94a3b8"; }
 }
 function fillCats(){
   const sel=$("fCat"), cur=sel.value;
@@ -611,24 +664,44 @@ function renderClients(){
   }).join("") + `<div class="cl-total"><span>Totale da ${list.length} ${list.length===1?"cliente":"clienti"}</span><span class="pos">${eur(tot)}</span></div>`
     + (noClient ? `<div class="muted" style="padding:6px 4px 0">Altre entrate senza cliente (es. stipendio): ${eur(noClient)}</div>` : "");
 }
-function rowHtml(t, fixedList){
+function rowHtml(t, fixedList, noDate){
   const c = CATS[t.cat]||CATS.altro, sign = t.type==="in"?"+":"−";
   const who = t.client ? ` · 👤 ${esc(t.client)}` : "";
   const meta = fixedList
     ? `${c.n}${who} · dal ${mLabel(t.since)}${t.until?" al "+mLabel(t.until):""}`
-    : `${c.n}${who} · ${t.isFixed?"fisso":new Date(t.date+"T12:00").toLocaleDateString("it-IT",{day:"numeric",month:"short"})}`;
+    : noDate ? `${c.n}${who}` : `${c.n}${who} · ${t.isFixed?"fisso":new Date(t.date+"T12:00").toLocaleDateString("it-IT",{day:"numeric",month:"short"})}`;
   return `<div class="row"><div class="ic" style="background:${c.c}22">${c.e}</div>
     <div><div class="t">${esc(t.desc||c.n)}${t.isFixed&&!fixedList?'<span class="tag">fisso</span>':""}${t.jobId?'<span class="tag">lavoro</span>':""}</div><div class="m">${meta}</div></div>
     <div class="a ${t.type==="in"?"pos":"neg"}">${sign} ${eur(t.amount)}</div>
     <div class="acts"><button class="edit" title="Modifica" data-edit="${t.id}" data-fixed="${(fixedList||t.isFixed)?1:0}">✎</button>
     <button class="del" title="Elimina" data-del="${t.id}" data-fixed="${(fixedList||t.isFixed)?1:0}">✕</button></div></div>`;
 }
+const openFixed = {out:false, in:false};
 function renderLists(){
-  const items = monthItems(viewM).sort((a,b)=> b.date.localeCompare(a.date) || (a.isFixed-b.isFixed));
-  $("txCount").textContent = items.length ? `· ${items.length}` : "";
-  $("txList").innerHTML = items.length ? items.map(t=>rowHtml(t,false)).join("") : `<div class="empty">Nessun movimento in ${mLabel(viewM)}.</div>`;
-  const fx = S.fixed.filter(f=>!f.until || f.until>=ym(new Date())).sort((a,b)=>a.type.localeCompare(b.type)||b.amount-a.amount);
-  $("fixedList").innerHTML = fx.length ? fx.map(f=>rowHtml(f,true)).join("") : `<div class="empty">Nessuna voce fissa.<br>Spunta “Fisso ogni mese” quando aggiungi affitto, abbonamenti o stipendio.</div>`;
+  $("movMonth").textContent = mLabel(viewM);
+  const items = monthItems(viewM), sum = a => a.reduce((s,x)=>s+x.amount,0);
+  for(const t of ["out","in"]){
+    const mine = items.filter(x=>x.type===t);
+    const fixed = mine.filter(x=>x.isFixed).sort((a,b)=>b.amount-a.amount);
+    const single = mine.filter(x=>!x.isFixed).sort((a,b)=>b.date.localeCompare(a.date));
+    const isOut = t==="out", cls = isOut?"neg":"pos";
+    let html = `<div class="col-head"><h2>${isOut?"↓ Uscite":"↑ Entrate"}</h2><b class="${cls}">${eur(sum(mine))}</b></div>
+      <details class="fixbox" data-t="${t}" ${openFixed[t]?"open":""}>
+        <summary><span class="lbl">📌 ${isOut?"Spese fisse":"Entrate fisse"}<small>${fixed.length} ${fixed.length===1?"voce":"voci"}</small></span>
+          <b class="${cls}">${eur(sum(fixed))}</b><span class="chev"><svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true"><path d="M2.5 4.5 6 8l3.5-3.5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></span></summary>
+        <div class="list">${fixed.length ? fixed.map(f=>rowHtml(f,true)).join("") :
+          `<div class="empty" style="padding:14px">Nessuna voce fissa. Quando aggiungi ${isOut?"affitto o abbonamenti":"lo stipendio"}, spunta “Fisso ogni mese”.</div>`}</div>
+      </details>`;
+    if(!single.length) html += `<div class="empty">Nessun'altra ${isOut?"spesa":"entrata"} in ${mLabel(viewM)}.</div>`;
+    else {
+      let day="";
+      for(const x of single){
+        if(x.date!==day){ day=x.date; html += `<div class="day-h">${new Date(day+"T12:00").toLocaleDateString("it-IT",{weekday:"short",day:"numeric",month:"long"})}</div>`; }
+        html += rowHtml(x,false,true);
+      }
+    }
+    $(isOut?"outCol":"inCol").innerHTML = html;
+  }
 }
 
 /* ---------- Actions ---------- */
@@ -747,13 +820,20 @@ function renderCats(){
       <div class="acts"><button class="edit" title="Modifica" data-cedit="${k}">✎</button>
       ${k===FALLBACK[C.type]?'<span style="width:32px"></span>':`<button class="del" title="Elimina" data-cdel="${k}">✕</button>`}</div></div>`; }).join("");
 }
+const EMOJIS = "🏠 🛒 🍽️ ☕ 🍕 🍔 🥗 🍷 🍺 🚗 ⛽ 🚆 ✈️ 🚕 🛵 🅿️ 💊 🏥 🦷 👓 💡 🔥 💧 📶 📱 💻 🎬 📷 🎥 🎙️ 🎧 🖥️ 💾 🎮 🎉 🎟️ 🎵 📺 🏖️ 🏨 🛍️ 👕 👟 💄 💈 🎁 👶 👨‍👩‍👧 🐶 🐱 🏋️ ⚽ 🧘 📚 🎓 ✏️ 🧾 🏦 💳 📄 🔧 🧹 🪴 🛋️ 🚬 🎰 ❤️ 🙏 💼 💰 💵 💶 📈 🤝 ⭐ ➕ •".split(" ");
+function renderEmojiGrid(){
+  const cur=$("cEmoji").value;
+  $("emojiGrid").innerHTML = EMOJIS.map(e=>`<button type="button" data-emo="${e}" class="${e===cur?"on":""}">${e}</button>`).join("");
+}
 function resetCatForm(){
   C.editing=null; $("cFormTitle").textContent = C.type==="in" ? "Nuova categoria di entrata" : "Nuova categoria di uscita";
   $("cEmoji").value=""; $("cName").value=""; $("cColor").value="#5b5bf0"; $("cSave").textContent="Aggiungi"; $("cReset").hidden=true;
+  renderEmojiGrid();
 }
 function editCat(k){
   const c=CATS[k]; C.editing=k; $("cFormTitle").textContent="Modifica “"+c.n+"”";
   $("cEmoji").value=c.e; $("cName").value=c.n; $("cColor").value=c.c; $("cSave").textContent="Salva"; $("cReset").hidden=false; $("cName").focus();
+  renderEmojiGrid();
 }
 async function saveCat(){
   const n=$("cName").value.trim(); if(!n){ $("cName").focus(); return; }
@@ -791,11 +871,30 @@ function renderJobs(){
   const soon=all.filter(j=>!j.delivered && j.dueDate && daysTo(j.dueDate)>=0 && daysTo(j.dueDate)<=7).length;
   const late=all.filter(j=>!j.delivered && j.dueDate && daysTo(j.dueDate)<0).length;
   const yr=today().slice(0,4), paidYr=all.filter(j=>j.paid && (j.paidDate||"").startsWith(yr)).reduce((s,j)=>s+j.amount,0);
-  $("jobStats").innerHTML = `<div><span>Da incassare</span><b class="${open.length?"neg":""}">${eur(open.reduce((s,j)=>s+j.amount,0))}</b><span>${open.length} ${open.length===1?"lavoro":"lavori"}</span></div>
-    <div><span>Incassato dai lavori</span><b class="pos">${eur(paidYr)}</b><span>nel ${yr}</span></div>
-    <div><span>Consegne</span><b>${soon} in arrivo</b><span>${late?`<span class="neg" style="display:inline">${late} in ritardo</span>`:"nei prossimi 7 giorni"}</span></div>`;
+  const kpi=(l,v,c,sub)=>`<div class="card kpi"><div class="label">${l}</div><div class="value ${c}">${v}</div><div class="sub">${sub}</div></div>`;
+  $("jobStats").innerHTML = kpi("Da incassare", eur(open.reduce((s,j)=>s+j.amount,0)), open.length?"neg":"", `${open.length} ${open.length===1?"lavoro":"lavori"} da saldare`)
+    + kpi("Incassato", eur(paidYr), "pos", `dai lavori nel ${yr}`)
+    + kpi("Consegne in arrivo", soon, "", "nei prossimi 7 giorni")
+    + kpi("In ritardo", late, late?"neg":"", late?"consegne scadute":"tutto in regola ✓");
+  const badge = open.length; $("jobBadge").hidden=!badge; $("jobBadge").textContent=badge;
+  // prossime consegne
+  const due = all.filter(j=>!j.delivered && j.dueDate).sort((a,b)=>a.dueDate.localeCompare(b.dueDate));
+  $("jobSoon").innerHTML = due.length ? due.slice(0,8).map(j=>{ const d=daysTo(j.dueDate), dt=new Date(j.dueDate+"T12:00");
+    const when = d<0?`in ritardo di ${-d} ${d===-1?"giorno":"giorni"}`:d===0?"oggi":d===1?"domani":`tra ${d} giorni`;
+    return `<div class="due ${d<0?"late":""}" data-j="${j.id}" data-a="edit"><div class="d"><b>${dt.getDate()}</b><span>${MESI[dt.getMonth()].slice(0,3)}</span></div>
+      <div><div class="t" style="font-weight:600">${esc(j.desc||"Lavoro")}</div><div class="m" style="font-size:12.5px;color:var(--muted)">${j.client?"👤 "+esc(j.client)+" · ":""}<span class="${d<0?"neg":""}">${when}</span></div></div></div>`; }).join("")
+    : `<div class="empty">Nessuna consegna in programma.</div>`;
+  // da incassare per cliente
+  const byC = new Map(); open.forEach(j=>{ const n=j.client||"Senza cliente", k=n.toLowerCase(); const c=byC.get(k)||{n,sum:0,cnt:0}; c.sum+=j.amount; c.cnt++; byC.set(k,c); });
+  const bc=[...byC.values()].sort((a,b)=>b.sum-a.sum);
+  $("jobByClient").innerHTML = bc.length ? bc.map(c=>`<div class="cl-row" style="grid-template-columns:36px 1fr auto"><div class="cl-av" style="width:36px;height:36px;font-size:13px">${esc(c.n.split(/\s+/).map(w=>w[0]).join("").slice(0,2).toUpperCase())}</div>
+      <div><div class="t">${esc(c.n)}</div><div class="m">${c.cnt} ${c.cnt===1?"lavoro":"lavori"} da saldare</div></div><div class="a neg">${eur(c.sum)}</div></div>`).join("")
+    : `<div class="empty">Nessuno ti deve soldi. 🎉</div>`;
+  const q = ($("jobSearch").value||"").trim().toLowerCase();
   const list = all.filter(j=> jobFilter==="all" || (jobFilter==="paid") === !!j.paid)
+    .filter(j=> !q || (j.client||"").toLowerCase().includes(q) || (j.desc||"").toLowerCase().includes(q))
     .sort((a,b)=> (a.paid-b.paid) || (a.delivered-b.delivered) || (a.dueDate||"9999").localeCompare(b.dueDate||"9999") || (b.workDate||"").localeCompare(a.workDate||""));
+  $("jobCount").textContent = list.length ? "· "+list.length : "";
   if(!list.length){
     $("jobList").innerHTML = `<div class="empty">${all.length ? (jobFilter==="open"?"Tutti i lavori sono saldati. 🎉":"Nessun lavoro qui.") : "Nessun lavoro ancora.<br>Premi “＋ Nuovo lavoro” per segnare cliente, data del lavoro, consegna e pagamento."}</div>`;
     return;
@@ -891,7 +990,7 @@ async function wipe(){
 }
 
 /* ---------- Boot ---------- */
-function showApp(){ $("lock").hidden=true; $("app").hidden=false; render(); }
+function showApp(){ $("lock").hidden=true; $("app").hidden=false; render(); setView(view); }
 async function unlock(){
   const raw = readRaw(), pw=$("lockPw").value;
   $("lockErr").textContent="";
@@ -917,10 +1016,23 @@ $("fCat").onchange=()=>{
 };
 $("eCat").addEventListener("change",()=>{ if($("eCat").value==="__new"){ $("eCat").value=E.orig.type===E.type?E.orig.cat:FALLBACK[E.type]; if(!$("eCat").value) $("eCat").value=FALLBACK[E.type]; openCats(E.type,"e"); } });
 $("newJobBtn").onclick=()=>openJob(null);
+let view = location.hash==="#lavori" ? "jobs" : "fin";
+function setView(v){
+  view=v;
+  $("viewFin").hidden = v!=="fin"; $("viewJobs").hidden = v!=="jobs";
+  $("monthNav").hidden = v!=="fin"; $("newJobBtn").hidden = v!=="jobs";
+  $("pageTitle").textContent = v==="jobs" ? "I miei lavori" : "Le mie finanze";
+  document.querySelectorAll("#tabs button").forEach(b=>b.classList.toggle("on",b.dataset.v===v));
+  try{ history.replaceState(null,"",v==="jobs"?"#lavori":location.pathname); }catch(e){}
+  window.scrollTo(0,0);
+}
+document.querySelectorAll("#tabs button").forEach(b=>b.onclick=()=>setView(b.dataset.v));
 document.querySelectorAll("#jobSeg button").forEach(b=>b.onclick=()=>{ jobFilter=b.dataset.f; document.querySelectorAll("#jobSeg button").forEach(x=>x.classList.toggle("on",x===b)); renderJobs(); });
 $("jPaid").onchange=()=>{ if($("jPaid").checked && !$("jPaidDate").value) $("jPaidDate").value=today(); $("jPaidLbl").hidden=!$("jPaid").checked; };
 $("jCancel").onclick=()=>$("jobDlg").close(); $("jSave").onclick=saveJob;
 $("jobDlg").addEventListener("keydown",e=>{ if(e.key==="Enter" && e.target.tagName==="INPUT" && e.target.type!=="checkbox"){ e.preventDefault(); saveJob(); } });
+$("jobSearch").oninput=renderJobs;
+$("jobSoon").onclick=e=>{ const d=e.target.closest("[data-j]"); if(d) openJob(d.dataset.j); };
 $("jobList").onclick=e=>{
   const b=e.target.closest("[data-j]"); if(!b) return;
   const id=b.dataset.j, a=b.dataset.a;
@@ -928,12 +1040,15 @@ $("jobList").onclick=e=>{
 };
 $("catsBtn").onclick=()=>openCats(type,null);
 document.querySelectorAll("#cTypeSeg button").forEach(b=>b.onclick=()=>{ C.type=b.dataset.t; resetCatForm(); renderCats(); });
-$("cSave").onclick=saveCat; $("cReset").onclick=resetCatForm; $("cClose").onclick=()=>$("catDlg").close();
+$("cSave").onclick=saveCat;
+$("emojiGrid").onclick=e=>{ const b=e.target.closest("[data-emo]"); if(!b) return; $("cEmoji").value=b.dataset.emo; renderEmojiGrid(); };
+$("cEmoji").oninput=renderEmojiGrid; $("cReset").onclick=resetCatForm; $("cClose").onclick=()=>$("catDlg").close();
 $("cName").addEventListener("keydown",e=>{ if(e.key==="Enter"){ e.preventDefault(); saveCat(); } });
 $("catList").onclick=e=>{ const ed=e.target.closest("[data-cedit]"); if(ed) return editCat(ed.dataset.cedit); const d=e.target.closest("[data-cdel]"); if(d) delCat(d.dataset.cdel); };
 $("addBtn").onclick=add;
 ["fAmount","fDesc","fDate"].forEach(id=>$(id).addEventListener("keydown",e=>{if(e.key==="Enter")add()}));
-$("txList").onclick=$("fixedList").onclick=e=>{
+document.addEventListener("toggle",e=>{ if(e.target.classList && e.target.classList.contains("fixbox")) openFixed[e.target.dataset.t]=e.target.open; },true);
+$("outCol").onclick=$("inCol").onclick=e=>{
   const d=e.target.closest("[data-del]"); if(d) return del(d.dataset.del, d.dataset.fixed==="1");
   const ed=e.target.closest("[data-edit]"); if(ed) openEdit(ed.dataset.edit, ed.dataset.fixed==="1");
 };
